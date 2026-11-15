@@ -164,3 +164,27 @@ button { touch-action: manipulation; }
 .reveal .icon .ico { width: 30px; height: 30px; }
 .hud-note.memory { background: rgba(38, 20, 20, .94); color: #f1e2d2; border-left: 3px solid #c44; }
 .hud-note.memory::before { content: "記憶"; display: block; font-size: 11px; letter-spacing: .3em; opacity: .6; }
+
+/* ---------- 三扇門流程、成長、按鍵 ---------- */
+.hud-boons { margin-top: 6px; display: flex; gap: 6px; font-size: 15px; opacity: .8; color: #e9c9a8; }
+.hud-keys { position: absolute; left: 14px; bottom: 12px; font-size: 12px; opacity: .4; letter-spacing: .08em; }
+.tbtn.idle { opacity: .35; }
+.tbtn.empty { opacity: .3; }
+#btn-item .ico { width: 30px; height: 30px; }
+#stick::after { content: ""; position: absolute; left: 50%; top: 50%; width: 62%; height: 62%; border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, .22); transform: translate(-50%, -50%); }
+#touch.lefty #btn-act { right: auto; left: max(22px, env(safe-area-inset-left)); }
+#touch.lefty #btn-item { right: auto; left: calc(max(22px, env(safe-area-inset-left)) + 96px); }
+#touch.lefty #stick-hint { left: auto; right: max(28px, env(safe-area-inset-right)); }
+.night { font-size: 13px; letter-spacing: .15em; opacity: .65; margin-bottom: 4px; }
+.steps { display: flex; justify-content: center; gap: 8px; margin: 0 0 14px; font-size: 13px; letter-spacing: .15em; }
+.steps span { padding: 3px 8px; border: 1px solid rgba(232, 223, 207, .2); opacity: .4; }
+.steps span.done { opacity: 1; border-color: rgba(200, 60, 60, .7); }
+.steps span.now { opacity: 1; border-color: rgba(232, 223, 207, .7); }
+.boon-list { font-size: 13px; opacity: .7; margin: -6px 0 16px; letter-spacing: .08em; }
+.card.boon { min-height: 150px; }
+.fragment + .fragment { margin-top: -12px; }
+@media (pointer: coarse) {
+  .hud-note { bottom: auto; top: calc(max(12px, env(safe-area-inset-top)) + 96px); font-size: 15px; padding: 12px 14px; }
+  .hud-toast { top: 40%; }
+}

@@ -36,7 +36,7 @@ const css = readFileSync(resolve(root, 'style.css'), 'utf8');
 let html = readFileSync(resolve(root, 'index.html'), 'utf8')
   // 單一檔案版沒有圖示與 manifest 檔，拿掉這些連結
   .replace(/^\s*<link rel="(manifest|icon|apple-touch-icon)"[^>]*>\n/gm, '')
-  .replace('<link rel="stylesheet" href="./style.css" />', () => `<style>\n${css}\n</style>`)
+  .replace('<link rel="stylesheet" href="./style.css" />', () => `<link rel="icon" href="data:," />\n  <style>\n${css}\n</style>`)
   .replace('<script type="module" src="./src/main.js"></script>', () => `<script>\n(() => {\n${js}\n})();\n</script>`);
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist/nightmare-doors.html'), html);

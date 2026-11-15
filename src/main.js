@@ -1,5 +1,5 @@
 import { createInput } from './core/input.js';
-import { titleScene, itemsScene, doorsScene, introScene, resultScene } from './scenes/menus.js';
+import { titleScene, itemsScene, doorsScene, introScene, boonScene, resultScene } from './scenes/menus.js';
 import { dreamScene } from './scenes/dream.js';
 import { isTouchDevice } from './core/input.js';
 
@@ -10,6 +10,7 @@ const SCENES = {
   doors: doorsScene,
   intro: introScene,
   dream: dreamScene,
+  boon: boonScene,
   result: resultScene,
 };
 

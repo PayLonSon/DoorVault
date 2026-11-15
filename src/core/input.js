@@ -1,4 +1,9 @@
 // 輸入：鍵盤（WASD／方向鍵、E 互動、空白鍵道具）與手機觸控
+// 左手模式：搖桿在右、按鈕在左
+let lefty = false;
+export function setLefty(on) { lefty = on; document.getElementById('touch').classList.toggle('lefty', on); }
+export const isLefty = () => lefty;
+
 export function createInput() {
   const keys = new Set();
   const state = {
@@ -12,7 +17,8 @@ export function createInput() {
   addEventListener('keydown', (e) => {
     if (e.repeat) { keys.add(e.code); return; }
     keys.add(e.code);
-    if (e.code === 'Space' || e.code === 'KeyQ') { state.itemPressed = true; e.preventDefault(); }
+    if (e.code === 'KeyE' || e.code === 'KeyQ') state.itemPressed = true;
+    if (e.code === 'Space' && !e.target.closest?.('button')) e.preventDefault();
   });
   addEventListener('keyup', (e) => keys.delete(e.code));
   addEventListener('blur', () => keys.clear());
@@ -25,7 +31,7 @@ export function createInput() {
 
   addEventListener('touchstart', (e) => {
     for (const t of e.changedTouches) {
-      if (stickId === null && t.clientX < innerWidth * 0.55 && !t.target.closest('.tbtn, .panel')) {
+      if (stickId === null && (lefty ? t.clientX > innerWidth * 0.45 : t.clientX < innerWidth * 0.55) && !t.target.closest('.tbtn, .panel')) {
         stickId = t.identifier; ox = t.clientX; oy = t.clientY;
         stick.style.display = 'block';
         stick.style.left = ox + 'px'; stick.style.top = oy + 'px';
@@ -40,7 +46,8 @@ export function createInput() {
       const d = Math.hypot(dx, dy);
       if (d > R) { dx = dx / d * R; dy = dy / d * R; }
       knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-      const mag = Math.min(1, d / R);
+      // 內圈是靜步（慢走、聲音小），推到外圈才是正常速度
+      const mag = d / R < 0.62 ? 0.45 : 1;
       state.touchMove.x = d > 6 ? (dx / (Math.hypot(dx, dy) || 1)) * mag : 0;
       state.touchMove.y = d > 6 ? (dy / (Math.hypot(dx, dy) || 1)) * mag : 0;
     }
@@ -83,7 +90,7 @@ export function createInput() {
       else { x = state.touchMove.x; y = state.touchMove.y; }
       const out = {
         x, y,
-        interact: keys.has('KeyE') || keys.has('Enter') || state.touchInteract,
+        interact: keys.has('Space') || keys.has('Enter') || state.touchInteract,
         item: state.itemPressed,
       };
       state.itemPressed = false;
