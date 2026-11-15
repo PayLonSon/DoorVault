@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>三扇門｜惡夢</title>
+  <meta name="theme-color" content="#050405" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="三扇門" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-180.png" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- 選單畫面（標題、選道具、選門、開場、結算）都畫在這層 -->
+  <div id="ui"></div>
+
+  <!-- 夢境中的 HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="hud-objective" id="hud-objective"></div>
+      <div class="hud-timer" id="hud-timer"></div>
+    </div>
+    <div class="hud-fear"><span>恐懼</span><div class="bar"><i id="hud-fear"></i></div></div>
+    <div class="hud-item" id="hud-item"></div>
+    <div class="hud-toast" id="hud-toast"></div>
+    <div class="hud-note hidden" id="hud-note"></div>
+  </div>
+
+  <!-- 手機操作：左半邊拖曳移動，右下兩顆按鈕 -->
+  <div id="touch" class="hidden">
+    <div id="stick-hint">拖曳<br>移動</div>
+    <div id="stick"><div id="stick-knob"></div></div>
+    <button id="btn-pause" class="tbtn small" aria-label="暫停">❚❚</button>
+    <button id="btn-act" class="tbtn">互動<small>按住</small></button>
+    <button id="btn-item" class="tbtn">道具</button>
+  </div>
+
+  <!-- 暫停畫面（切到別的 App 會自動暫停） -->
+  <div id="pause" class="hidden"><div class="panel"><h2>暫停</h2><p class="sub">惡夢還在等你。</p><button class="btn" id="btn-resume">繼續</button></div></div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
