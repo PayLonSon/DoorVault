@@ -3,7 +3,7 @@ import { sfx, startAmbience, stopAmbience, updateAmbience, suspendAudio, resumeA
 import { isTouchDevice } from '../core/input.js';
 import { session } from '../core/run.js';
 import { BEHAVIORS } from '../world/monsters.js';
-import { buildStaticLayer, targetAnchor, drawTarget, drawTargetGlint, drawPlayer, drawFx } from '../world/draw.js';
+import { buildStaticLayer, targetAnchor, drawTarget, drawTargetGlint, drawPlayer, drawNote, drawFx } from '../world/draw.js';
 
 // 夢境場景：讀取故事資料，建立房間、目標物與怪物。
 // 怪物怎麼動由 world/monsters.js 的行為決定；這裡負責玩家、互動、道具、恐懼值與畫面。
@@ -210,7 +210,8 @@ export const dreamScene = {
 
     const note = this.notes.find((n) => dist(p, n) < 40);
     if (note) {
-      this.prompt = { target: note, text: isTouchDevice() ? '點「互動」閱讀' : '按 E 閱讀' };
+      const verb = note.kind === 'memory' ? '回想' : '閱讀';
+      this.prompt = { target: note, text: isTouchDevice() ? `點「互動」${verb}` : `按 E ${verb}` };
       if (pressed) this.showNote(note);
     }
     if (this.noteT > 0) { this.noteT -= dt; if (this.noteT <= 0) this.hideNote(); }
@@ -238,6 +239,7 @@ export const dreamScene = {
     note.read = true;
     this.activeNote = note;
     this.hud.note.textContent = note.text;
+    this.hud.note.classList.toggle('memory', note.kind === 'memory');
     this.hud.note.classList.remove('hidden');
     this.noteT = 7;
     sfx.paper();
@@ -320,9 +322,8 @@ export const dreamScene = {
     h.timer.style.color = left < 30 ? '#e55' : '';
     h.fear.style.width = this.fear + '%';
     const it = this.item;
-    h.item.textContent = it.def.kind === 'toggle'
-      ? `${it.def.icon} ${it.def.name}（${it.on ? '開' : '關'}）`
-      : `${it.def.icon} ${it.def.name} ×${it.uses}`;
+    const label = it.def.kind === 'toggle' ? `${it.def.name}（${it.on ? '開' : '關'}）` : `${it.def.name} ×${it.uses}`;
+    if (label !== this.itemLabel) { this.itemLabel = label; h.item.innerHTML = `${it.def.icon} ${label}`; }
   },
 
   // ======================== 繪製 ========================
@@ -348,14 +349,7 @@ export const dreamScene = {
     ctx.drawImage(this.staticLayer, 0, 0, map.width, map.height);
 
     for (const t of this.targets) drawTarget(ctx, t, kind, this.t);
-    for (const n of this.notes) {
-      ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(0.2);
-      ctx.fillStyle = n.read ? '#8a8070' : '#e6dcc3';
-      ctx.fillRect(-9, -11, 18, 22);
-      ctx.fillStyle = 'rgba(60,40,30,.5)';
-      for (let i = 0; i < 4; i++) ctx.fillRect(-6, -7 + i * 5, 12, 1);
-      ctx.restore();
-    }
+    for (const n of this.notes) drawNote(ctx, n);
     for (const f of this.fx) if (f.kind !== 'noise') drawFx(ctx, f);
     drawPlayer(ctx, p, this.invuln);
     this.behavior.draw(ctx, this, this.monster);
@@ -388,7 +382,7 @@ export const dreamScene = {
       dc.fillStyle = g;
       dc.beginPath(); dc.arc(sx, sy, r * S, 0, Math.PI * 2); dc.fill();
     };
-    hole(p.x, p.y, this.lightOn ? 230 : 95 - this.fear * 0.25);
+    hole(p.x, p.y, this.lightOn ? 250 : 125 - this.fear * 0.3);
     if (lamp) hole(lamp.x, lamp.y, 170 * flick, 0.9 * flick);
     for (const t of this.targets) {
       if (kind === 'window' && !t.done) hole(t.anchor.x, t.anchor.y, 105, 0.75);
@@ -407,6 +401,18 @@ export const dreamScene = {
     world();
     for (const t of this.targets) drawTargetGlint(ctx, t, kind, this.t);
     for (const f of this.fx) if (f.kind === 'noise') drawFx(ctx, f);
+    // 還沒看過的紙條與記憶，在黑暗裡微微發亮
+    for (const n of this.notes) {
+      if (n.read) continue;
+      const mem = n.kind === 'memory';
+      const a = (mem ? 0.3 : 0.16) + Math.sin(this.t * 2 + n.x) * 0.08;
+      const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, mem ? 20 : 14);
+      g.addColorStop(0, `rgba(${mem ? '255,170,150' : '235,225,200'},${a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, 20, 0, Math.PI * 2); ctx.fill();
+    }
+    // 怪物靠近時，身形會從黑暗裡浮出來
+    const ghost = clamp(1 - this.presence() / 340, 0, 1) * 0.6;
+    if (ghost > 0.02) { ctx.globalAlpha = ghost; this.behavior.draw(ctx, this, this.monster); ctx.globalAlpha = 1; }
     this.behavior.drawAbove(ctx, this, this.monster);
     if (this.prompt && !this.ended) {
       const t = this.prompt.target;

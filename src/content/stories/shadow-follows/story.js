@@ -8,21 +8,22 @@ export const shadowFollows = {
   tip: '影子會走你走過的路。不要停太久。',
   objective: { label: '點亮蠟燭', kind: 'candle', holdSeconds: 1.1 },
   timeLimit: 150,
-  theme: { floor: 'hospital', base: '#1a1d20', obstacle: 'bed', darkness: 0.97 },
+  theme: { floor: 'hospital', base: '#1a1d20', obstacle: 'bed', darkness: 0.9 },
+  // 醫院的長廊：你從中間出發，兩頭都得去。回頭時不換一條路，就會撞上自己的影子
   map: {
-    width: 1200, height: 800, wall: 24,
-    playerStart: { x: 100, y: 400 },
+    width: 1800, height: 460, wall: 24,
+    playerStart: { x: 950, y: 230 },
     obstacles: [
-      { x: 150, y: 110, w: 70, h: 130 }, { x: 350, y: 110, w: 70, h: 130 }, { x: 550, y: 110, w: 70, h: 130 },
-      { x: 750, y: 110, w: 70, h: 130 }, { x: 950, y: 110, w: 70, h: 130 },
-      { x: 150, y: 560, w: 70, h: 130 }, { x: 350, y: 560, w: 70, h: 130 }, { x: 550, y: 560, w: 70, h: 130 },
-      { x: 750, y: 560, w: 70, h: 130 }, { x: 950, y: 560, w: 70, h: 130 },
+      { x: 260, y: 205, w: 240, h: 50, type: 'bench' }, { x: 640, y: 205, w: 240, h: 50, type: 'bench' },
+      { x: 1020, y: 205, w: 240, h: 50, type: 'bench' }, { x: 1400, y: 205, w: 240, h: 50, type: 'bench' },
+      { x: 1690, y: 50, w: 70, h: 130, type: 'bed' },
     ],
-    targets: [{ x: 285, y: 175 }, { x: 885, y: 175 }, { x: 485, y: 625 }, { x: 1090, y: 625 }],
+    decor: [{ type: 'cane', x: 1672, y: 120 }, { type: 'doors', y: 24, w: 1600 }],
+    targets: [{ x: 150, y: 330 }, { x: 570, y: 100 }, { x: 1330, y: 330 }, { x: 1700, y: 300 }],
     notes: [
-      { x: 650, y: 330, text: '影子會走你走過的路，一步也不會錯。' },
-      { x: 1100, y: 300, text: '站著不動的人，會被自己的影子追上。' },
-      { x: 300, y: 470, text: '奶奶說：撒一把鹽，影子就認不得路了。別拿燈照它，光會讓它長大。' },
+      { x: 980, y: 100, text: '影子會走你走過的路，一步也不會錯。回頭的時候，換一條路走。' },
+      { x: 760, y: 360, text: '奶奶說：撒一把鹽，影子就認不得路了。別拿燈照它，光會讓它長大。' },
+      { x: 1600, y: 340, kind: 'memory', text: '走廊盡頭是奶奶的病房。那天我走得很慢，因為我知道，走到了就要說再見。' },
     ],
   },
   monster: {

@@ -156,3 +156,11 @@ button { touch-action: manipulation; }
 .intro-idiom { font-size: clamp(30px, 9vw, 48px); letter-spacing: .45em; margin: 0 0 28px .45em; color: #e8dfcf;
   text-shadow: 0 0 24px rgba(160, 30, 30, .6); animation: fadeIn 1.2s ease both; }
 .hud-toast { padding: 0 18px; font-size: clamp(15px, 4.4vw, 20px); line-height: 1.7; }
+
+/* ---------- 手繪圖示、記憶 ---------- */
+.ico { width: 1.15em; height: 1.15em; vertical-align: -.2em; display: inline-block; }
+.card .icon { filter: none; line-height: 1; color: #e8dfcf; }
+.card .icon .ico { width: 50px; height: 50px; }
+.reveal .icon .ico { width: 30px; height: 30px; }
+.hud-note.memory { background: rgba(38, 20, 20, .94); color: #f1e2d2; border-left: 3px solid #c44; }
+.hud-note.memory::before { content: "記憶"; display: block; font-size: 11px; letter-spacing: .3em; opacity: .6; }

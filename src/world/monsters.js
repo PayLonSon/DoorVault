@@ -314,6 +314,9 @@ const trail = {
   drawAbove(ctx, sc, m) {
     if (!m.active) return;
     const a = m.freezeT > 0 ? 0.3 : 0.9;
+    ctx.strokeStyle = `rgba(190,190,225,${a * 0.4})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(m.x, m.y + 3, 11, 13, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(m.x, m.y - 10, 9, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = `rgba(245,245,255,${a})`;
     ctx.beginPath(); ctx.arc(m.x - 3, m.y - 11, 1.6, 0, Math.PI * 2); ctx.arc(m.x + 3, m.y - 11, 1.6, 0, Math.PI * 2); ctx.fill();
   },

@@ -8,27 +8,29 @@ export const snakeInCup = {
   tip: '你移動時牠不會動，停下來牠才會靠近。',
   objective: { label: '打翻酒杯', kind: 'cup', holdSeconds: 0.9 },
   timeLimit: 150,
-  theme: { floor: 'carpet', base: '#2a1416', obstacle: 'table', darkness: 0.96 },
+  theme: { floor: 'carpet', base: '#2a1416', obstacle: 'table', darkness: 0.9 },
+  // 除夕的宴客廳：一張長桌，北牆上掛著一把弓，蛇就從弓的影子裡出來
   map: {
-    width: 1200, height: 800, wall: 24,
-    playerStart: { x: 600, y: 700 },
+    width: 1400, height: 620, wall: 24,
+    playerStart: { x: 700, y: 540 },
     obstacles: [
-      { x: 250, y: 250, w: 700, h: 60 }, { x: 250, y: 500, w: 700, h: 60 },
-      { x: 1060, y: 380, w: 60, h: 50 },
-      { x: 110, y: 110, w: 40, h: 40 }, { x: 1050, y: 110, w: 40, h: 40 },
-      { x: 110, y: 650, w: 40, h: 40 }, { x: 1050, y: 650, w: 40, h: 40 },
+      { x: 250, y: 270, w: 900, h: 80, type: 'table' },
+      { x: 1260, y: 110, w: 60, h: 50, type: 'table' },
+      { x: 120, y: 120, w: 40, h: 40, type: 'pillar' }, { x: 120, y: 460, w: 40, h: 40, type: 'pillar' },
+      { x: 1240, y: 460, w: 40, h: 40, type: 'pillar' },
     ],
+    decor: [{ type: 'bow', x: 700, y: 36 }, { type: 'cane', x: 800, y: 44 }, { type: 'seats', x: 250, y: 270, w: 900, h: 80 }],
     targets: [
-      { x: 330, y: 262 }, { x: 700, y: 298 }, { x: 420, y: 512 }, { x: 860, y: 548 }, { x: 1090, y: 392 },
+      { x: 330, y: 285 }, { x: 560, y: 335 }, { x: 800, y: 285 }, { x: 1040, y: 335 }, { x: 1290, y: 145 },
     ],
     notes: [
-      { x: 180, y: 420, text: '古書上說：杯裡的蛇，其實是牆上那把弓的影子。' },
-      { x: 1000, y: 200, text: '燈一亮，影子就會現出原形。' },
-      { x: 600, y: 420, text: '不要求神拜佛。你越相信牠存在，牠就長得越大。' },
+      { x: 190, y: 310, text: '杯裡的蛇，其實是牆上那把弓的影子。燈一亮，影子就會現出原形。' },
+      { x: 1200, y: 310, text: '不要求神拜佛。你越相信牠存在，牠就長得越大。' },
+      { x: 860, y: 120, kind: 'memory', text: '那年除夕，奶奶的位子空著。她的拐杖掛在牆上，影子落進了我的杯子裡。' },
     ],
   },
   monster: {
-    behavior: 'stillness', radius: 20, start: { x: 600, y: 90 },
+    behavior: 'stillness', radius: 20, start: { x: 700, y: 70 },
     speed: 125, retreatSpeed: 45, speedPerObjective: 12, fearOnHit: 22,
   },
   messages: {
