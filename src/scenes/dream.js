@@ -1,54 +1,51 @@
 import { resolveEffect } from '../core/effects.js';
 import { sfx, startAmbience, stopAmbience, updateAmbience, suspendAudio, resumeAudio } from '../core/audio.js';
 import { isTouchDevice } from '../core/input.js';
+import { session } from '../core/run.js';
+import { BEHAVIORS } from '../world/monsters.js';
+import { buildStaticLayer, targetAnchor, drawTarget, drawTargetGlint, drawPlayer, drawFx } from '../world/draw.js';
 
-// 夢境場景：讀取故事資料來建立房間、怪物與醒來條件
-// 目前支援的醒來條件：close-windows（關上所有窗戶）
+// 夢境場景：讀取故事資料，建立房間、目標物與怪物。
+// 怪物怎麼動由 world/monsters.js 的行為決定；這裡負責玩家、互動、道具、恐懼值與畫面。
 
 const PLAYER_SPEED = 140;
 const PLAYER_R = 12;
+const INTERACT_RANGE = 52;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-// 手機震動（不支援或被瀏覽器擋下時就略過）
-const buzz = (ms) => { try { navigator.vibrate?.(ms); } catch (e) { /* 略過 */ } };
+const buzz = (ms) => { try { navigator.vibrate?.(ms); } catch (e) { /* 不支援就略過 */ } };
+
+const TARGET_SFX = { window: 'windowClose', cup: 'cup', key: 'key', candle: 'candle', jar: 'seal' };
+const VERB = { window: '關窗', cup: '打翻', key: '撿起', candle: '點燃', jar: '封住' };
 
 export const dreamScene = {
   enter(game) {
-    const run = game.run;
-    const story = run.story;
-    const map = story.map;
-    this.game = game;
-    this.story = story;
-    this.map = map;
-    this.cfg = story.monster;
-    this.t = 0;
-    this.fear = 0;
-    this.ended = null;
-    this.endT = 0;
-    this.shake = 0;
-    this.hitFlash = 0;
-    this.invuln = 0;
-    this.prevInteract = false;
-    this.fx = [];
-    this.toastT = 0;
-    this.noteT = 0;
-    this.activeNote = null;
-    this.progressSfxT = 0;
-
-    this.player = { x: map.playerStart.x, y: map.playerStart.y, face: 1, step: 0 };
-    this.monster = {
-      x: map.lamp.x + 80, y: map.lamp.y, vx: 0, vy: 0,
-      state: 'hover', timer: 0, angle: 0, loseT: 0, flap: 0,
+    const run = game.run, story = run.story;
+    Object.assign(this, {
+      game, story, map: story.map, theme: story.theme, cfg: story.monster,
+      behavior: BEHAVIORS[story.monster.behavior],
+      t: 0, fear: 0, ended: null, endT: 0, shake: 0, hitFlash: 0, invuln: 0,
+      prevInteract: false, fx: [], toastT: 0, noteT: 0, activeNote: null, progressSfxT: 0,
+      noise: 0, noiseEvent: 0, noiseFxT: 0, done: 0, paused: false, moved: 0, tipShown: false,
+      lampOff: 0,
+    });
+    this.player = { x: this.map.playerStart.x, y: this.map.playerStart.y, face: 1, step: 0, moving: false, mag: 0 };
+    this.targets = this.map.targets.map((t) => ({ ...t, done: false, progress: 0, anchor: targetAnchor(t, this.map) }));
+    this.need = story.objective.need ?? this.targets.length;
+    this.notes = this.map.notes.map((n) => ({ ...n, read: false }));
+    this.item = {
+      def: run.item, uses: run.item.uses ?? Infinity, on: false,
+      effect: resolveEffect(run.item, story), announced: false,
     };
-    this.windows = map.windows.map((w) => ({ ...w, closed: false, progress: 0, anchor: windowAnchor(w, map) }));
-    this.notes = map.notes.map((n) => ({ ...n, read: false }));
-    this.item = { def: run.item, uses: run.item.uses ?? Infinity, on: false, effect: resolveEffect(run.item, story), announced: false };
-
-    this.staticLayer = buildStaticLayer(map);
+    const start = this.cfg.start || { x: this.map.width / 2, y: this.map.height / 2 };
+    this.monster = { x: start.x, y: start.y, vx: 0, vy: 0, seed: Math.random() * 10 };
+    this.staticLayer = buildStaticLayer(story);
     this.dark = document.createElement('canvas');
     this.darkCtx = this.dark.getContext('2d');
+    run.need = this.need;
+    session.runs++;
+    session.seen.add(story.id);
 
-    // HUD
     this.hud = {
       root: document.getElementById('hud'),
       objective: document.getElementById('hud-objective'),
@@ -61,16 +58,22 @@ export const dreamScene = {
     this.hud.root.classList.remove('hidden');
     this.hud.note.classList.add('hidden');
     document.getElementById('touch').classList.toggle('hidden', !isTouchDevice());
-    game.input.reset();
-    this.paused = false;
-    this.moved = 0;
-    const hint = document.getElementById('stick-hint');
-    hint.classList.remove('fade');
-    this.hint = hint;
+    this.hint = document.getElementById('stick-hint');
+    this.hint.classList.remove('fade');
     document.getElementById('btn-pause').onclick = () => this.pause(game);
     document.getElementById('btn-resume').onclick = () => this.resume(game);
+    game.input.reset();
     startAmbience();
-    this.toast('……', 1.5);
+    this.behavior.init(this, this.monster);
+    this.toast(story.idiom, 1.8);
+  },
+
+  exit() {
+    document.getElementById('pause').classList.add('hidden');
+    this.hud.root.classList.add('hidden');
+    this.hud.toast.classList.remove('show');
+    document.getElementById('touch').classList.add('hidden');
+    stopAmbience();
   },
 
   pause(game) {
@@ -89,27 +92,29 @@ export const dreamScene = {
     document.getElementById('pause').classList.add('hidden');
   },
 
-  exit() {
-    document.getElementById('pause').classList.add('hidden');
-    this.paused = false;
-    this.hud.root.classList.add('hidden');
-    this.hud.toast.classList.remove('show');
-    document.getElementById('touch').classList.add('hidden');
-    stopAmbience();
-  },
-
   toast(text, secs = 2.4) {
     this.hud.toast.textContent = text;
     this.hud.toast.classList.add('show');
     this.toastT = secs;
   },
 
+  makeNoise(r) {
+    this.noiseEvent = Math.max(this.noiseEvent, r);
+    if (this.cfg.behavior === 'blind') this.fx.push({ kind: 'noise', x: this.player.x, y: this.player.y, r, t: 0, life: 0.9 });
+  },
+
   end(result) {
     if (this.ended) return;
+    const run = this.game.run;
     this.ended = result;
     this.endT = 0;
-    this.game.run.result = result;
-    this.game.run.elapsed = this.t;
+    run.result = result;
+    run.elapsed = this.t;
+    run.progress = this.done;
+    if (result === 'win') {
+      session.woke.add(this.story.id);
+      if (!session.fragments.includes(this.story.fragment)) session.fragments.push(this.story.fragment);
+    }
     stopAmbience();
     if (result === 'win') sfx.wake(); else { sfx.fail(); buzz(300); }
     this.hud.note.classList.add('hidden');
@@ -130,31 +135,50 @@ export const dreamScene = {
     }
 
     this.t += dt;
+    if (!this.tipShown && this.t > 2 && this.story.tip) { this.tipShown = true; this.toast(this.story.tip, 4); }
+
     const input = game.input.read();
     this.updatePlayer(dt, input);
     this.updateInteract(dt, input);
+    const lightOn = this.item.def.kind === 'toggle' && this.item.on;
+    this.lightOn = lightOn;
+    this.lightProvokes = lightOn && this.item.effect === 'provoked';
+    this.lightRepels = lightOn && this.item.effect === 'effective';
     if (input.item) this.useItem();
-    this.updateMonster(dt);
+    this.updateNoise(dt);
+    this.behavior.update(this, this.monster, dt);
+    this.checkContact(dt);
     this.updateFear(dt);
     this.updateHud();
-
     if (this.t >= this.story.timeLimit) this.end('timeout');
   },
 
   updatePlayer(dt, input) {
     const p = this.player;
-    const reading = this.activeNote && !this.hud.note.classList.contains('hidden');
+    const mag = Math.min(1, Math.hypot(input.x, input.y));
     p.x += input.x * PLAYER_SPEED * dt;
     p.y += input.y * PLAYER_SPEED * dt;
     if (input.x) p.face = Math.sign(input.x);
-    p.moving = !!(input.x || input.y);
+    p.mag = mag;
+    p.moving = mag > 0.08;
     if (p.moving) {
-      p.step += dt * 10;
+      p.step += dt * 10 * mag;
       this.moved += dt;
       if (this.moved > 1.5) this.hint.classList.add('fade');
     }
     collideWorld(p, PLAYER_R, this.map);
-    if (reading && dist(p, this.activeNote) > 60) this.hideNote();
+    if (this.activeNote && dist(p, this.activeNote) > 60) this.hideNote();
+  },
+
+  updateNoise(dt) {
+    const p = this.player;
+    const moveNoise = p.moving ? 30 + p.mag * p.mag * 330 : 0;
+    this.noise = Math.max(moveNoise, this.noiseEvent);
+    this.noiseEvent = Math.max(0, this.noiseEvent - dt * 2000);
+    if (this.cfg.behavior === 'blind' && moveNoise > 160) {
+      this.noiseFxT -= dt;
+      if (this.noiseFxT <= 0) { this.noiseFxT = 0.4; this.fx.push({ kind: 'noise', x: p.x, y: p.y, r: moveNoise, t: 0, life: 0.8 }); }
+    }
   },
 
   updateInteract(dt, input) {
@@ -162,24 +186,28 @@ export const dreamScene = {
     const pressed = input.interact && !this.prevInteract;
     this.prevInteract = input.interact;
     this.prompt = null;
+    const kind = this.story.objective.kind;
+    const open = this.targets.filter((t) => !t.done && !t.broken);
+    let target = null, best = INTERACT_RANGE;
+    for (const t of open) { const d = dist(p, t.anchor); if (d < best) { best = d; target = t; } }
+    for (const t of open) if (t !== target) t.progress = Math.max(0, t.progress - dt * 0.5);
 
-    // 窗戶：按住關上
-    const win = this.windows.find((w) => !w.closed && dist(p, w.anchor) < 52);
-    for (const w of this.windows) if (w !== win && !w.closed) w.progress = Math.max(0, w.progress - dt * 0.5);
-    if (win) {
-      this.prompt = { target: win.anchor, text: isTouchDevice() ? '按住「互動」關窗' : '按住 E 關窗', progress: win.progress };
+    if (target) {
+      const touch = isTouchDevice();
+      this.prompt = { target: target.anchor, text: `${touch ? '按住「互動」' : '按住 E '}${VERB[kind]}`, progress: target.progress };
       if (input.interact) {
-        win.progress += dt / this.story.objective.holdSeconds;
+        target.progress += dt / this.story.objective.holdSeconds;
         this.progressSfxT -= dt;
         if (this.progressSfxT <= 0) { sfx.progress(); this.progressSfxT = 0.22; }
-        if (win.progress >= 1) this.closeWindow(win);
+        this.behavior.onTargetProgress?.(this, this.monster, target);
+        if (target.broken) return;
+        if (target.progress >= 1) this.completeTarget(target);
       } else {
-        win.progress = Math.max(0, win.progress - dt * 0.5);
+        target.progress = Math.max(0, target.progress - dt * 0.5);
       }
       return;
     }
 
-    // 紙條：按一下閱讀
     const note = this.notes.find((n) => dist(p, n) < 40);
     if (note) {
       this.prompt = { target: note, text: isTouchDevice() ? '點「互動」閱讀' : '按 E 閱讀' };
@@ -188,23 +216,22 @@ export const dreamScene = {
     if (this.noteT > 0) { this.noteT -= dt; if (this.noteT <= 0) this.hideNote(); }
   },
 
-  closeWindow(win) {
-    win.closed = true;
-    win.progress = 1;
-    sfx.windowClose();
+  completeTarget(t) {
+    t.done = true;
+    t.progress = 1;
+    this.done++;
+    (sfx[TARGET_SFX[this.story.objective.kind]] || sfx.windowClose)();
     buzz(40);
-    this.shake = 0.4;
-    const closed = this.windows.filter((w) => w.closed).length;
-    if (closed >= this.windows.length) {
-      this.toast('最後一扇窗關上了。', 2);
+    this.shake = 0.35;
+    if (this.done >= this.need) {
+      this.toast('……', 2);
       this.end('win');
       return;
     }
-    const msgs = this.story.messages.objectiveDone;
-    this.toast(msgs[Math.min(closed - 1, msgs.length - 1)]);
-    // 關窗的聲音會引來牠
-    const m = this.monster;
-    if (m.state === 'hover') { m.state = 'chase'; m.loseT = 0; sfx.screech(); }
+    const msgs = this.story.messages.progress;
+    const left = this.need - this.done;
+    this.toast(left === 1 ? msgs[msgs.length - 1] : msgs[Math.min(this.done - 1, msgs.length - 2)]);
+    this.behavior.onProgress?.(this, this.monster);
   },
 
   showNote(note) {
@@ -233,12 +260,10 @@ export const dreamScene = {
       it.on ? sfx.flashOn() : sfx.flashOff();
       if (it.on) {
         if (it.effect === 'provoked') {
-          this.toast(msgs.toggleProvoked); sfx.screech();
-          m.state = 'enraged'; m.timer = 2.5;
-        } else if (it.effect === 'effective' && !it.announced) {
-          this.toast(msgs.effective);
+          this.toast(msgs.toggleProvoked);
+          this.behavior.onItem(this, m, 'provoked', d);
         } else if (!it.announced) {
-          this.toast('光照亮了四周。');
+          this.toast(it.effect === 'effective' ? msgs.effective : '光照亮了四周。');
         }
         it.announced = true;
       }
@@ -249,113 +274,48 @@ export const dreamScene = {
     it.uses--;
     (sfx[def.id] || sfx.click)();
     this.fx.push({ kind: def.id, x: p.x, y: p.y, t: 0, life: def.id === 'matches' ? 5 : 1.4 });
+    if (def.tags.includes('sound')) this.makeNoise(600);
 
-    const RANGE = 280;
-    if (it.effect === 'effective') {
-      if (d < RANGE) {
-        m.state = 'flee'; m.timer = 4.5;
-        this.toast(msgs.effective);
-      } else {
-        this.toast('牠離得太遠了。', 1.8);
-      }
-    } else if (it.effect === 'provoked') {
-      m.state = 'enraged'; m.timer = 5;
-      sfx.screech();
-      this.toast(msgs.provoked);
-    } else {
-      this.toast(d < 400 ? msgs.none : '什麼也沒有發生。');
-    }
+    const res = this.behavior.onItem(this, m, it.effect, d);
+    const text = { effective: msgs.effective, provoked: msgs.provoked, none: msgs.none, far: '牠離得太遠了。', nothing: '什麼也沒有發生。' }[res];
+    if (text) this.toast(text, res === 'far' ? 1.8 : 2.4);
   },
 
-  updateMonster(dt) {
-    const m = this.monster, p = this.player, cfg = this.cfg, lamp = this.map.lamp;
-    const d = dist(m, p);
-    const closed = this.windows.filter((w) => w.closed).length;
-    const lightOn = this.item.def.kind === 'toggle' && this.item.on;
-    const lightProvokes = lightOn && this.item.effect === 'provoked';
-    const lightRepels = lightOn && this.item.effect === 'effective';
-    const chaseSpeed = cfg.chaseSpeed + closed * cfg.speedPerObjective;
-
-    let tx = m.x, ty = m.y, speed = 90;
-    m.flap += dt * (m.state === 'enraged' ? 34 : 22);
-
-    switch (m.state) {
-      case 'hover': {
-        m.angle += dt * 0.9;
-        tx = lamp.x + Math.cos(m.angle) * cfg.hoverRadius;
-        ty = lamp.y + Math.sin(m.angle * 1.3) * cfg.hoverRadius * 0.6;
-        speed = 85;
-        if (d < cfg.detectRadius || lightProvokes) { m.state = 'chase'; m.loseT = 0; sfx.screech(); }
-        break;
-      }
-      case 'chase': {
-        tx = p.x; ty = p.y;
-        speed = lightProvokes ? Math.max(chaseSpeed, 150) : chaseSpeed;
-        if (d > cfg.loseRadius && !lightProvokes) { m.loseT += dt; if (m.loseT > 2) m.state = 'hover'; }
-        else m.loseT = 0;
-        break;
-      }
-      case 'enraged': {
-        tx = p.x; ty = p.y; speed = cfg.enragedSpeed;
-        m.timer -= dt;
-        if (m.timer <= 0) { m.state = 'chase'; m.loseT = 0; }
-        break;
-      }
-      case 'flee':
-      case 'recover': {
-        const ax = m.x - p.x, ay = m.y - p.y, l = Math.hypot(ax, ay) || 1;
-        tx = m.x + ax / l * 100; ty = m.y + ay / l * 100;
-        speed = m.state === 'flee' ? 170 : 120;
-        m.timer -= dt;
-        if (m.timer <= 0) m.state = 'hover';
-        break;
-      }
-    }
-    if (lightRepels && d < 200 && m.state !== 'flee') { m.state = 'flee'; m.timer = 1.5; }
-
-    // 搖搖晃晃的飛行
-    const dx = tx - m.x, dy = ty - m.y, l = Math.hypot(dx, dy) || 1;
-    const wob = Math.sin(this.t * 7 + m.angle) * 0.6;
-    const want = { x: (dx / l - dy / l * wob) * speed, y: (dy / l + dx / l * wob) * speed };
-    const k = Math.min(1, dt * 4);
-    m.vx += (want.x - m.vx) * k;
-    m.vy += (want.y - m.vy) * k;
-    m.x = clamp(m.x + m.vx * dt, 40, this.map.width - 40);
-    m.y = clamp(m.y + m.vy * dt, 40, this.map.height - 40);
-
-    // 碰到玩家
+  checkContact(dt) {
     this.invuln = Math.max(0, this.invuln - dt);
-    if (this.invuln <= 0 && (m.state === 'chase' || m.state === 'enraged' || m.state === 'hover')
-        && d < cfg.radius + PLAYER_R - 4) {
-      this.fear += cfg.fearOnHit;
-      this.invuln = 1.4;
-      this.shake = 1;
-      this.hitFlash = 1;
-      sfx.hit();
-      buzz([80, 40, 120]);
-      const ax = p.x - m.x, ay = p.y - m.y, ll = Math.hypot(ax, ay) || 1;
-      p.x += ax / ll * 40; p.y += ay / ll * 40;
-      collideWorld(p, PLAYER_R, this.map);
-      m.state = 'recover'; m.timer = 1.6;
-    }
+    const m = this.monster, p = this.player;
+    if (this.invuln > 0 || !this.behavior.canHit(this, m)) return;
+    if (dist(m, p) >= this.cfg.radius + PLAYER_R - 4) return;
+    this.fear += this.cfg.fearOnHit;
+    this.invuln = 1.4;
+    this.shake = 1;
+    this.hitFlash = 1;
+    sfx.hit();
+    buzz([80, 40, 120]);
+    const ax = p.x - m.x, ay = p.y - m.y, l = Math.hypot(ax, ay) || 1;
+    p.x += (ax / l) * 40; p.y += (ay / l) * 40;
+    collideWorld(p, PLAYER_R, this.map);
+    this.behavior.onHit(this, m);
+  },
+
+  presence() {
+    const d = this.behavior.presenceDistance ? this.behavior.presenceDistance(this, this.monster) : dist(this.monster, this.player);
+    return Number.isFinite(d) ? d : 9999;
   },
 
   updateFear(dt) {
-    const d = dist(this.monster, this.player);
+    const d = this.presence();
     const near = clamp(1 - d / 230, 0, 1);
-    const lightOn = this.item.def.kind === 'toggle' && this.item.on;
-    this.fear += dt * (0.28 + near * 3.6 - (lightOn ? 0.15 : 0));
+    this.fear += dt * (0.28 + near * 3.6 - (this.lightOn ? 0.15 : 0));
     this.fear = clamp(this.fear, 0, 100);
-    this.near = clamp(1 - d / 450, 0, 1);
-    updateAmbience(dt, this.fear / 100, this.near);
+    updateAmbience(dt, this.fear / 100, clamp(1 - d / 450, 0, 1));
     if (this.fear >= 100) this.end('caught');
   },
 
   updateHud() {
     const h = this.hud;
-    const closed = this.windows.filter((w) => w.closed).length;
     const left = Math.max(0, this.story.timeLimit - this.t);
-    h.objective.textContent = `${this.story.objective.label} ${closed}/${this.windows.length}`;
+    h.objective.textContent = `${this.story.objective.label} ${this.done}/${this.need}`;
     h.timer.textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
     h.timer.style.color = left < 30 ? '#e55' : '';
     h.fear.style.width = this.fear + '%';
@@ -369,58 +329,45 @@ export const dreamScene = {
   render(game, dt) {
     const { ctx, canvas } = game;
     const W = canvas.width, H = canvas.height;
-    const S = game.worldScale();                 // 每個世界單位對應多少實體像素
+    const S = game.worldScale();
     const vw = W / S, vh = H / S;
-    const p = this.player, map = this.map;
+    const p = this.player, map = this.map, kind = this.story.objective.kind;
 
-    // 鏡頭跟隨玩家
-    // 手機：底部有搖桿和按鈕，鏡頭往下多留一段空間，角色才不會被手指擋住
+    // 鏡頭跟隨；手機底部預留按鈕的空間
     const padB = isTouchDevice() ? (150 * game.dpr) / S : 0;
     let cx = map.width > vw ? clamp(p.x - vw / 2, 0, map.width - vw) : (map.width - vw) / 2;
-    let cy = map.height + padB > vh
-      ? clamp(p.y - (vh - padB) / 2, 0, map.height + padB - vh)
-      : (map.height - vh) / 2;
+    let cy = map.height + padB > vh ? clamp(p.y - (vh - padB) / 2, 0, map.height + padB - vh) : (map.height - vh) / 2;
     if (this.shake > 0) { cx += (Math.random() - 0.5) * 10 * this.shake; cy += (Math.random() - 0.5) * 10 * this.shake; }
     const toS = (x, y) => [(x - cx) * S, (y - cy) * S];
+    const world = () => ctx.setTransform(S, 0, 0, S, -cx * S, -cy * S);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
-    ctx.setTransform(S, 0, 0, S, -cx * S, -cy * S);
-
-    // 靜態地板、箱子、牆
+    world();
     ctx.drawImage(this.staticLayer, 0, 0, map.width, map.height);
 
-    // 窗戶
-    for (const w of this.windows) drawWindow(ctx, w, this.t);
-
-    // 紙條
+    for (const t of this.targets) drawTarget(ctx, t, kind, this.t);
     for (const n of this.notes) {
-      ctx.save();
-      ctx.translate(n.x, n.y); ctx.rotate(0.2);
+      ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(0.2);
       ctx.fillStyle = n.read ? '#8a8070' : '#e6dcc3';
       ctx.fillRect(-9, -11, 18, 22);
       ctx.fillStyle = 'rgba(60,40,30,.5)';
       for (let i = 0; i < 4; i++) ctx.fillRect(-6, -7 + i * 5, 12, 1);
       ctx.restore();
     }
-
-    // 道具特效（煙、鹽、波紋）
-    for (const f of this.fx) drawFx(ctx, f);
-
-    // 玩家
+    for (const f of this.fx) if (f.kind !== 'noise') drawFx(ctx, f);
     drawPlayer(ctx, p, this.invuln);
+    this.behavior.draw(ctx, this, this.monster);
 
-    // 怪物本體
-    drawMoth(ctx, this.monster, this.cfg.radius);
-
-    // 燈泡
-    const lamp = map.lamp;
-    const flick = this.lampFlicker(dt);
-    ctx.strokeStyle = '#2a2420'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(lamp.x, 0); ctx.lineTo(lamp.x, lamp.y - 8); ctx.stroke();
-    ctx.fillStyle = `rgba(255, 240, 190, ${0.3 + flick * 0.7})`;
-    ctx.beginPath(); ctx.arc(lamp.x, lamp.y, 7, 0, Math.PI * 2); ctx.fill();
+    const lamp = this.theme.lamp;
+    const flick = lamp ? this.lampFlicker() : 0;
+    if (lamp) {
+      ctx.strokeStyle = '#2a2420'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(lamp.x, 0); ctx.lineTo(lamp.x, lamp.y - 8); ctx.stroke();
+      ctx.fillStyle = `rgba(255, 240, 190, ${0.3 + flick * 0.7})`;
+      ctx.beginPath(); ctx.arc(lamp.x, lamp.y, 7, 0, Math.PI * 2); ctx.fill();
+    }
 
     // ---- 黑暗遮罩 ----
     if (this.dark.width !== W || this.dark.height !== H) { this.dark.width = W; this.dark.height = H; }
@@ -428,10 +375,11 @@ export const dreamScene = {
     dc.globalCompositeOperation = 'source-over';
     dc.setTransform(1, 0, 0, 1, 0, 0);
     dc.clearRect(0, 0, W, H);
-    dc.fillStyle = 'rgba(3, 2, 5, 0.965)';
+    dc.fillStyle = `rgba(3, 2, 5, ${this.theme.darkness})`;
     dc.fillRect(0, 0, W, H);
     dc.globalCompositeOperation = 'destination-out';
     const hole = (x, y, r, a = 1) => {
+      if (r <= 0) return;
       const [sx, sy] = toS(x, y);
       const g = dc.createRadialGradient(sx, sy, 0, sx, sy, r * S);
       g.addColorStop(0, `rgba(0,0,0,${a})`);
@@ -440,10 +388,12 @@ export const dreamScene = {
       dc.fillStyle = g;
       dc.beginPath(); dc.arc(sx, sy, r * S, 0, Math.PI * 2); dc.fill();
     };
-    const lightOn = this.item.def.kind === 'toggle' && this.item.on;
-    hole(p.x, p.y, lightOn ? 230 : 95 - this.fear * 0.25);
-    hole(lamp.x, lamp.y, 170 * flick, 0.9 * flick);
-    for (const w of this.windows) if (!w.closed) hole(w.anchor.x, w.anchor.y, 105, 0.75);
+    hole(p.x, p.y, this.lightOn ? 230 : 95 - this.fear * 0.25);
+    if (lamp) hole(lamp.x, lamp.y, 170 * flick, 0.9 * flick);
+    for (const t of this.targets) {
+      if (kind === 'window' && !t.done) hole(t.anchor.x, t.anchor.y, 105, 0.75);
+      if (kind === 'candle' && t.done) hole(t.x, t.y, 150 + Math.sin(this.t * 9 + t.x) * 6, 0.85);
+    }
     for (const f of this.fx) {
       const k = 1 - f.t / f.life;
       if (f.kind === 'mirror') hole(f.x, f.y, 320 * k, k);
@@ -453,9 +403,11 @@ export const dreamScene = {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(this.dark, 0, 0);
 
-    // ---- 黑暗之上：怪物發光的眼睛、互動提示 ----
-    ctx.setTransform(S, 0, 0, S, -cx * S, -cy * S);
-    drawMothEyes(ctx, this.monster, this.t);
+    // ---- 黑暗之上：眼睛、目標微光、噪音圈、互動提示 ----
+    world();
+    for (const t of this.targets) drawTargetGlint(ctx, t, kind, this.t);
+    for (const f of this.fx) if (f.kind === 'noise') drawFx(ctx, f);
+    this.behavior.drawAbove(ctx, this, this.monster);
     if (this.prompt && !this.ended) {
       const t = this.prompt.target;
       if (this.prompt.progress > 0) {
@@ -467,7 +419,7 @@ export const dreamScene = {
       ctx.fillText(this.prompt.text, p.x, p.y - 26);
     }
 
-    // ---- 後製：暈影、恐懼紅光、受擊閃爍、結束淡出 ----
+    // ---- 後製 ----
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const f01 = this.fear / 100;
     const pulse = 0.5 + Math.sin(this.t * (3 + f01 * 6)) * 0.5;
@@ -491,16 +443,6 @@ export const dreamScene = {
   },
 };
 
-// ======================== 輔助函式 ========================
-
-function windowAnchor(w, map) {
-  const m = map.wall + 22;
-  if (w.side === 'top') return { x: w.x, y: m };
-  if (w.side === 'bottom') return { x: w.x, y: map.height - m };
-  if (w.side === 'left') return { x: m, y: w.y };
-  return { x: map.width - m, y: w.y };
-}
-
 function collideWorld(p, r, map) {
   const wl = map.wall;
   p.x = clamp(p.x, wl + r, map.width - wl - r);
@@ -510,181 +452,7 @@ function collideWorld(p, r, map) {
     const dx = p.x - nx, dy = p.y - ny, d = Math.hypot(dx, dy);
     if (d < r) {
       if (d === 0) { p.y = o.y - r; continue; }
-      p.x = nx + dx / d * r; p.y = ny + dy / d * r;
+      p.x = nx + (dx / d) * r; p.y = ny + (dy / d) * r;
     }
   }
-}
-
-// 地板、箱子、牆只畫一次，存成圖片
-function buildStaticLayer(map) {
-  const SCALE = 2;
-  const c = document.createElement('canvas');
-  c.width = map.width * SCALE; c.height = map.height * SCALE;
-  const g = c.getContext('2d');
-  g.scale(SCALE, SCALE);
-  g.fillStyle = '#211a15';
-  g.fillRect(0, 0, map.width, map.height);
-  // 木板
-  let seed = 7;
-  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let y = 0; y < map.height; y += 36) {
-    g.fillStyle = `rgba(0,0,0,${0.15 + rnd() * 0.15})`;
-    g.fillRect(0, y, map.width, 2);
-    let x = -rnd() * 200;
-    while (x < map.width) {
-      const len = 120 + rnd() * 180;
-      g.fillStyle = `rgba(${rnd() < 0.5 ? '255,220,180' : '0,0,0'},${rnd() * 0.05})`;
-      g.fillRect(x, y + 2, len, 34);
-      g.fillStyle = 'rgba(0,0,0,.35)';
-      g.fillRect(x + len, y, 2, 36);
-      x += len;
-    }
-  }
-  // 污漬
-  for (let i = 0; i < 30; i++) {
-    g.fillStyle = `rgba(0,0,0,${rnd() * 0.18})`;
-    g.beginPath(); g.ellipse(rnd() * map.width, rnd() * map.height, 20 + rnd() * 60, 10 + rnd() * 30, rnd() * 3, 0, Math.PI * 2); g.fill();
-  }
-  // 箱子
-  for (const o of map.obstacles) {
-    g.fillStyle = 'rgba(0,0,0,.45)';
-    g.fillRect(o.x + 6, o.y + 8, o.w, o.h);
-    g.fillStyle = '#4a3828';
-    g.fillRect(o.x, o.y, o.w, o.h);
-    g.strokeStyle = '#2c2017'; g.lineWidth = 3;
-    g.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
-    g.beginPath(); g.moveTo(o.x, o.y); g.lineTo(o.x + o.w, o.y + o.h);
-    g.moveTo(o.x + o.w, o.y); g.lineTo(o.x, o.y + o.h); g.stroke();
-  }
-  // 牆
-  g.fillStyle = '#0f0b09';
-  g.fillRect(0, 0, map.width, map.wall);
-  g.fillRect(0, map.height - map.wall, map.width, map.wall);
-  g.fillRect(0, 0, map.wall, map.height);
-  g.fillRect(map.width - map.wall, 0, map.wall, map.height);
-  return c;
-}
-
-function drawWindow(ctx, w, t) {
-  const horiz = w.side === 'top' || w.side === 'bottom';
-  const L = 76, T = 20;
-  ctx.save();
-  ctx.translate(w.x, w.y);
-  if (!horiz) ctx.rotate(Math.PI / 2);
-  ctx.fillStyle = w.closed ? '#15100c' : '#3c4a5e';
-  ctx.fillRect(-L / 2, -T / 2, L, T);
-  if (!w.closed) {
-    // 被風吹動的窗簾
-    const sway = Math.sin(t * 2.4 + w.x) * 6;
-    ctx.fillStyle = 'rgba(200,190,170,.35)';
-    ctx.fillRect(-L / 2, -T / 2, 14 + sway, T);
-    ctx.fillRect(L / 2 - 14 + sway, -T / 2, 14 - sway, T);
-  } else {
-    ctx.strokeStyle = '#3a2a1e'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0, -T / 2); ctx.lineTo(0, T / 2); ctx.stroke();
-  }
-  ctx.strokeStyle = '#4a3828'; ctx.lineWidth = 3;
-  ctx.strokeRect(-L / 2, -T / 2, L, T);
-  ctx.restore();
-}
-
-function drawPlayer(ctx, p, invuln) {
-  if (invuln > 0 && Math.floor(invuln * 12) % 2 === 0) return;
-  const bob = p.moving ? Math.sin(p.step) * 1.5 : 0;
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.fillStyle = 'rgba(0,0,0,.4)';
-  ctx.beginPath(); ctx.ellipse(0, 12, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
-  // 睡衣
-  ctx.fillStyle = '#9fb3c8';
-  ctx.beginPath(); ctx.ellipse(0, 3 + bob, 9, 11, 0, 0, Math.PI * 2); ctx.fill();
-  // 頭
-  ctx.fillStyle = '#e8d6c0';
-  ctx.beginPath(); ctx.arc(0, -9 + bob, 7, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#2a1f18';
-  ctx.beginPath(); ctx.arc(0, -11 + bob, 7, Math.PI, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#222';
-  ctx.fillRect(p.face * 2 - 1, -9 + bob, 2, 2);
-  ctx.restore();
-}
-
-function drawMoth(ctx, m, r) {
-  const flap = Math.abs(Math.sin(m.flap));
-  const ang = Math.atan2(m.vy, m.vx) + Math.PI / 2;
-  ctx.save();
-  ctx.translate(m.x, m.y);
-  ctx.rotate(ang);
-  ctx.fillStyle = 'rgba(0,0,0,.35)';
-  ctx.beginPath(); ctx.ellipse(6, 14, r * 1.4, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = m.state === 'enraged' ? '#5a3434' : '#4a443c';
-  for (const s of [-1, 1]) {
-    ctx.save();
-    ctx.scale(s, 1);
-    ctx.beginPath();
-    ctx.ellipse(r * 0.75 * (0.4 + flap * 0.6), -4, r * 1.05 * (0.35 + flap * 0.65), r * 0.85, -0.35, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(r * 0.55 * (0.4 + flap * 0.6), 10, r * 0.6 * (0.35 + flap * 0.65), r * 0.55, 0.4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-  ctx.fillStyle = '#2b2622';
-  ctx.beginPath(); ctx.ellipse(0, 2, r * 0.3, r * 0.75, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#2b2622'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(-2, -r * 0.6); ctx.quadraticCurveTo(-8, -r * 1.2, -12, -r * 1.1);
-  ctx.moveTo(2, -r * 0.6); ctx.quadraticCurveTo(8, -r * 1.2, 12, -r * 1.1); ctx.stroke();
-  ctx.restore();
-}
-
-function drawMothEyes(ctx, m, t) {
-  const ang = Math.atan2(m.vy, m.vx) + Math.PI / 2;
-  const glow = m.state === 'enraged' ? 1 : m.state === 'chase' ? 0.85 : 0.5;
-  ctx.save();
-  ctx.translate(m.x, m.y);
-  ctx.rotate(ang);
-  for (const s of [-1, 1]) {
-    const g = ctx.createRadialGradient(s * 4, -10, 0, s * 4, -10, 9);
-    g.addColorStop(0, `rgba(255,60,40,${glow})`);
-    g.addColorStop(1, 'rgba(255,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(s * 4, -10, 9, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `rgba(255,200,180,${glow})`;
-    ctx.beginPath(); ctx.arc(s * 4, -10, 1.6, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
-}
-
-function drawFx(ctx, f) {
-  const k = f.t / f.life;
-  ctx.save();
-  if (f.kind === 'harmonica' || f.kind === 'charm') {
-    const color = f.kind === 'charm' ? '255,210,120' : '200,220,255';
-    for (let i = 0; i < 3; i++) {
-      const kk = clamp(k * 1.4 - i * 0.18, 0, 1);
-      if (kk <= 0 || kk >= 1) continue;
-      ctx.strokeStyle = `rgba(${color},${(1 - kk) * 0.7})`;
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(f.x, f.y, 20 + kk * 260, 0, Math.PI * 2); ctx.stroke();
-    }
-  } else if (f.kind === 'matches') {
-    for (let i = 0; i < 14; i++) {
-      const a = i * 2.4 + f.t * 0.6, rr = 20 + (i % 5) * 18 + f.t * 12;
-      ctx.fillStyle = `rgba(150,140,130,${0.18 * (1 - k)})`;
-      ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr - f.t * 8, 26 + (i % 3) * 8, 0, Math.PI * 2); ctx.fill();
-    }
-    if (f.t < 1.2) {
-      ctx.fillStyle = `rgba(255,170,60,${1 - f.t / 1.2})`;
-      ctx.beginPath(); ctx.arc(f.x, f.y - 6, 4, 0, Math.PI * 2); ctx.fill();
-    }
-  } else if (f.kind === 'salt') {
-    for (let i = 0; i < 26; i++) {
-      const a = i * 0.9, rr = k * (60 + (i % 7) * 18);
-      ctx.fillStyle = `rgba(240,240,240,${1 - k})`;
-      ctx.fillRect(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr, 2, 2);
-    }
-  } else if (f.kind === 'mirror') {
-    ctx.fillStyle = `rgba(255,255,240,${(1 - k) * 0.5})`;
-    ctx.beginPath(); ctx.arc(f.x, f.y, 40 + k * 200, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
 }

@@ -74,7 +74,12 @@ export function createInput() {
       if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
       if (keys.has('KeyW') || keys.has('ArrowUp')) y -= 1;
       if (keys.has('KeyS') || keys.has('ArrowDown')) y += 1;
-      if (x || y) { const d = Math.hypot(x, y); x /= d; y /= d; }
+      if (x || y) {
+        const d = Math.hypot(x, y);
+        // 按住 Shift 輕輕走（聲音比較小）
+        const k = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 0.45 : 1;
+        x = x / d * k; y = y / d * k;
+      }
       else { x = state.touchMove.x; y = state.touchMove.y; }
       const out = {
         x, y,

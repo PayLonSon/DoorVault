@@ -75,8 +75,16 @@ export function startAmbience() {
   wn.start(); lfo.start();
 
   drone = { g, nodes: [o1, o2] };
-  wings = { g: wg, nodes: [wn, lfo] };
+  wings = { g: wg, nodes: [wn, lfo], bp, lfo };
   heartTimer = 0;
+}
+
+// 怪物的「存在感」聲音：每種怪物不同（翅膀、嘶嘶聲、呼吸、低語、悶響）
+export function setPresence(freq, rate, q = 1.2) {
+  if (!ctx || !wings) return;
+  wings.bp.frequency.value = freq;
+  wings.bp.Q.value = q;
+  wings.lfo.frequency.value = rate;
 }
 
 export function stopAmbience() {
@@ -119,6 +127,7 @@ export const sfx = {
   charm() { tone(330, 'sine', 1.0, 0.08); tone(495, 'sine', 1.0, 0.05); },
   flashOn() { tone(1200, 'square', 0.03, 0.06); },
   flashOff() { tone(700, 'square', 0.03, 0.05); },
+  window() { burst('lowpass', 180, 0.4, 0.5); tone(80, 'sine', 0.3, 0.3, 0, 50); },
   windowClose() { burst('lowpass', 180, 0.4, 0.5); tone(80, 'sine', 0.3, 0.3, 0, 50); },
   paper() { burst('bandpass', 3000, 0.25, 0.08); },
   screech() { tone(900, 'sawtooth', 0.5, 0.08, 0, 300); tone(950, 'sawtooth', 0.5, 0.06, 0, 280); burst('bandpass', 1500, 0.4, 0.15); },
@@ -126,4 +135,10 @@ export const sfx = {
   wake() { [392, 494, 587, 784].forEach((f, i) => tone(f, 'sine', 2.2, 0.06, i * 0.18)); },
   fail() { tone(220, 'sawtooth', 2.4, 0.06, 0, 55); tone(233, 'sawtooth', 2.4, 0.05, 0, 58); },
   progress() { tone(300, 'sine', 0.05, 0.02); },
+  knock(vol = 0.3) { burst('lowpass', 160, 0.18, vol); tone(70, 'sine', 0.15, vol * 0.6, 0, 50); },
+  cup() { tone(1400, 'triangle', 0.25, 0.06, 0, 900); burst('bandpass', 2000, 0.3, 0.08, 0.05); },
+  key() { tone(2600, 'sine', 0.12, 0.05); tone(3200, 'sine', 0.15, 0.04, 0.06); },
+  candle() { burst('highpass', 2500, 0.12, 0.2); burst('bandpass', 600, 0.6, 0.05, 0.08); },
+  seal() { burst('bandpass', 1200, 0.2, 0.12); tone(110, 'sine', 0.3, 0.2, 0.05, 70); },
+  shatter() { for (let i = 0; i < 8; i++) burst('highpass', 3000 + i * 300, 0.12, 0.15, i * 0.03); tone(90, 'sawtooth', 0.6, 0.15, 0, 40); },
 };

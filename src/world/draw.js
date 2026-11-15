@@ -1,0 +1,284 @@
+// 繪製：地圖（依主題）、目標物、玩家、道具特效
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// ---------------- 靜態地圖：只畫一次 ----------------
+export function buildStaticLayer(story) {
+  const map = story.map, theme = story.theme;
+  const SCALE = 2;
+  const c = document.createElement('canvas');
+  c.width = map.width * SCALE; c.height = map.height * SCALE;
+  const g = c.getContext('2d');
+  g.scale(SCALE, SCALE);
+  let seed = 11;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+  g.fillStyle = theme.base;
+  g.fillRect(0, 0, map.width, map.height);
+  FLOORS[theme.floor]?.(g, map, rnd);
+
+  // 污漬
+  for (let i = 0; i < 28; i++) {
+    g.fillStyle = `rgba(0,0,0,${rnd() * 0.18})`;
+    g.beginPath(); g.ellipse(rnd() * map.width, rnd() * map.height, 20 + rnd() * 60, 10 + rnd() * 30, rnd() * 3, 0, Math.PI * 2); g.fill();
+  }
+  for (const o of map.obstacles) {
+    g.fillStyle = 'rgba(0,0,0,.45)';
+    if (!o.wall) g.fillRect(o.x + 6, o.y + 8, o.w, o.h);
+    (o.wall ? OBSTACLES.wall : OBSTACLES[theme.obstacle] || OBSTACLES.crate)(g, o);
+  }
+  g.fillStyle = '#0c0a09';
+  g.fillRect(0, 0, map.width, map.wall);
+  g.fillRect(0, map.height - map.wall, map.width, map.wall);
+  g.fillRect(0, 0, map.wall, map.height);
+  g.fillRect(map.width - map.wall, 0, map.wall, map.height);
+  return c;
+}
+
+const FLOORS = {
+  planks(g, map, rnd) {
+    for (let y = 0; y < map.height; y += 36) {
+      g.fillStyle = `rgba(0,0,0,${0.15 + rnd() * 0.15})`;
+      g.fillRect(0, y, map.width, 2);
+      let x = -rnd() * 200;
+      while (x < map.width) {
+        const len = 120 + rnd() * 180;
+        g.fillStyle = `rgba(${rnd() < 0.5 ? '255,220,180' : '0,0,0'},${rnd() * 0.05})`;
+        g.fillRect(x, y + 2, len, 34);
+        g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + len, y, 2, 36);
+        x += len;
+      }
+    }
+  },
+  carpet(g, map) {
+    g.strokeStyle = 'rgba(160,110,60,.12)'; g.lineWidth = 2;
+    for (let y = 0; y < map.height; y += 60) for (let x = (y / 60) % 2 ? 30 : 0; x < map.width; x += 60) {
+      g.beginPath(); g.moveTo(x, y - 18); g.lineTo(x + 18, y); g.lineTo(x, y + 18); g.lineTo(x - 18, y); g.closePath(); g.stroke();
+    }
+    g.strokeStyle = 'rgba(200,150,80,.18)'; g.lineWidth = 6;
+    g.strokeRect(70, 70, map.width - 140, map.height - 140);
+  },
+  tiles(g, map, rnd) {
+    for (let y = 0; y < map.height; y += 40) for (let x = 0; x < map.width; x += 40) {
+      g.fillStyle = `rgba(255,255,255,${rnd() * 0.025})`; g.fillRect(x, y, 40, 40);
+    }
+    g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1;
+    for (let x = 0; x < map.width; x += 40) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, map.height); g.stroke(); }
+    for (let y = 0; y < map.height; y += 40) { g.beginPath(); g.moveTo(0, y); g.lineTo(map.width, y); g.stroke(); }
+  },
+  hospital(g, map, rnd) {
+    for (let y = 0; y < map.height; y += 50) for (let x = 0; x < map.width; x += 50) {
+      g.fillStyle = `rgba(200,220,220,${0.02 + rnd() * 0.03})`; g.fillRect(x + 1, y + 1, 48, 48);
+    }
+    g.fillStyle = 'rgba(120,160,150,.12)'; g.fillRect(0, 380, map.width, 40);
+  },
+  stone(g, map, rnd) {
+    for (let y = 0; y < map.height; y += 46) {
+      let x = -rnd() * 60;
+      while (x < map.width) {
+        const w = 50 + rnd() * 70;
+        g.fillStyle = `rgba(${rnd() < 0.5 ? '255,240,200' : '0,0,0'},${0.03 + rnd() * 0.06})`;
+        g.fillRect(x + 2, y + 2, w - 4, 42);
+        x += w;
+      }
+    }
+  },
+};
+
+const OBSTACLES = {
+  crate(g, o) {
+    g.fillStyle = '#4a3828'; g.fillRect(o.x, o.y, o.w, o.h);
+    g.strokeStyle = '#2c2017'; g.lineWidth = 3;
+    g.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
+    g.beginPath(); g.moveTo(o.x, o.y); g.lineTo(o.x + o.w, o.y + o.h); g.moveTo(o.x + o.w, o.y); g.lineTo(o.x, o.y + o.h); g.stroke();
+  },
+  table(g, o) {
+    g.fillStyle = '#3a2418'; g.fillRect(o.x, o.y, o.w, o.h);
+    g.fillStyle = '#6a2c2c'; g.fillRect(o.x + 4, o.y + 4, o.w - 8, o.h - 8);
+    g.fillStyle = 'rgba(255,220,180,.06)'; g.fillRect(o.x + 4, o.y + 4, o.w - 8, 6);
+  },
+  furniture(g, o) {
+    g.fillStyle = '#2b3038'; g.fillRect(o.x, o.y, o.w, o.h);
+    g.strokeStyle = '#1a1d22'; g.lineWidth = 3; g.strokeRect(o.x + 1.5, o.y + 1.5, o.w - 3, o.h - 3);
+  },
+  wall(g, o) {
+    g.fillStyle = '#0c0d10'; g.fillRect(o.x, o.y, o.w, o.h);
+  },
+  bed(g, o) {
+    g.fillStyle = '#5c6166'; g.fillRect(o.x, o.y, o.w, o.h);
+    g.fillStyle = '#9aa0a4'; g.fillRect(o.x + 4, o.y + 4, o.w - 8, o.h - 8);
+    g.fillStyle = '#c8cccd';
+    const top = o.y < 400;
+    g.fillRect(o.x + 10, top ? o.y + 8 : o.y + o.h - 30, o.w - 20, 22);
+    g.fillStyle = 'rgba(0,0,0,.15)';
+    g.fillRect(o.x + 4, top ? o.y + 40 : o.y + 4, o.w - 8, o.h - 48);
+  },
+  shelf(g, o) {
+    g.fillStyle = '#3a2c1c'; g.fillRect(o.x, o.y, o.w, o.h);
+    g.fillStyle = 'rgba(0,0,0,.35)';
+    for (let x = o.x + 30; x < o.x + o.w; x += 34) g.fillRect(x, o.y, 2, o.h);
+    if (o.w === o.h) { // 中間的酒桶
+      g.fillStyle = '#4a3622';
+      g.beginPath(); g.arc(o.x + o.w / 2, o.y + o.h / 2, o.w / 2, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#22180f'; g.lineWidth = 3;
+      g.beginPath(); g.arc(o.x + o.w / 2, o.y + o.h / 2, o.w / 2 - 6, 0, Math.PI * 2); g.stroke();
+    }
+  },
+};
+
+// ---------------- 目標物 ----------------
+export function targetAnchor(t, map) {
+  if (!t.side) return { x: t.x, y: t.y };
+  const m = map.wall + 22;
+  if (t.side === 'top') return { x: t.x, y: m };
+  if (t.side === 'bottom') return { x: t.x, y: map.height - m };
+  if (t.side === 'left') return { x: m, y: t.y };
+  return { x: map.width - m, y: t.y };
+}
+
+export function drawTarget(ctx, t, kind, time) {
+  ctx.save();
+  if (kind === 'window') {
+    const horiz = t.side === 'top' || t.side === 'bottom', L = 76, T = 20;
+    ctx.translate(t.x, t.y);
+    if (!horiz) ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = t.done ? '#15100c' : '#3c4a5e';
+    ctx.fillRect(-L / 2, -T / 2, L, T);
+    if (!t.done) {
+      const sway = Math.sin(time * 2.4 + t.x) * 6;
+      ctx.fillStyle = 'rgba(200,190,170,.35)';
+      ctx.fillRect(-L / 2, -T / 2, 14 + sway, T); ctx.fillRect(L / 2 - 14 + sway, -T / 2, 14 - sway, T);
+    } else {
+      ctx.strokeStyle = '#3a2a1e'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(0, -T / 2); ctx.lineTo(0, T / 2); ctx.stroke();
+    }
+    ctx.strokeStyle = '#4a3828'; ctx.lineWidth = 3; ctx.strokeRect(-L / 2, -T / 2, L, T);
+  } else if (kind === 'cup') {
+    ctx.translate(t.x, t.y);
+    if (t.done) {
+      ctx.fillStyle = 'rgba(120,10,20,.6)';
+      ctx.beginPath(); ctx.ellipse(10, 4, 16, 7, 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.rotate(1.3);
+    }
+    const wob = t.done ? 0 : Math.sin(time * 3 + t.x) * 0.6;
+    ctx.fillStyle = '#b8a070';
+    ctx.beginPath(); ctx.ellipse(wob, 0, 7, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = t.done ? '#3a2a1a' : '#5a0f18';
+    ctx.beginPath(); ctx.ellipse(wob, -0.5, 5, 3.4, 0, 0, Math.PI * 2); ctx.fill();
+    if (!t.done) { // 酒裡的小蛇
+      ctx.strokeStyle = 'rgba(20,30,10,.9)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-3, 0);
+      ctx.quadraticCurveTo(0, -2 + Math.sin(time * 6) * 1.5, 3, 0); ctx.stroke();
+    }
+  } else if (kind === 'key') {
+    if (!t.done) {
+      ctx.translate(t.x, t.y); ctx.rotate(0.6);
+      ctx.strokeStyle = '#c9a74a'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(-5, 0, 4, 0, Math.PI * 2); ctx.moveTo(-1, 0); ctx.lineTo(9, 0); ctx.moveTo(6, 0); ctx.lineTo(6, 3); ctx.moveTo(9, 0); ctx.lineTo(9, 3); ctx.stroke();
+    }
+  } else if (kind === 'candle') {
+    ctx.translate(t.x, t.y);
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath(); ctx.ellipse(2, 8, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d9d2c0'; ctx.fillRect(-4, -8, 8, 16);
+    ctx.fillStyle = '#222'; ctx.fillRect(-0.5, -11, 1, 3);
+    if (t.done) {
+      const f = 1 + Math.sin(time * 18 + t.x) * 0.15;
+      ctx.fillStyle = 'rgba(255,190,90,.95)';
+      ctx.beginPath(); ctx.ellipse(0, -15, 3 * f, 6 * f, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,250,220,.95)';
+      ctx.beginPath(); ctx.ellipse(0, -14, 1.4, 3, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (kind === 'jar') {
+    const r = (t.rattle || 0) * 2;
+    ctx.translate(t.x + (Math.random() - 0.5) * r, t.y + (Math.random() - 0.5) * r);
+    if (t.broken) {
+      ctx.fillStyle = '#5a4026';
+      for (let i = 0; i < 7; i++) {
+        const a = i * 0.9;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a) * 10, Math.sin(a) * 10);
+        ctx.lineTo(Math.cos(a) * 22, Math.sin(a) * 22); ctx.lineTo(Math.cos(a + 0.3) * 18, Math.sin(a + 0.3) * 18); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(30,20,10,.8)'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.beginPath(); ctx.ellipse(3, 6, 18, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#6a4a2a'; ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#2a1c10'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#8a6a40'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.stroke();
+      if (t.done) {
+        ctx.fillStyle = '#e8d28a'; ctx.fillRect(-11, -4, 22, 8);
+        ctx.fillStyle = '#a01818'; ctx.fillRect(-9, -1, 18, 2);
+        ctx.fillRect(-1, -4, 2, 8);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+// 黑暗中還沒完成的目標會微微閃光，讓玩家找得到
+export function drawTargetGlint(ctx, t, kind, time) {
+  if (t.done || t.broken || kind === 'window') return;
+  const a = 0.25 + Math.sin(time * 2.5 + t.x * 0.01) * 0.15;
+  const color = kind === 'key' ? '255,220,120' : kind === 'cup' ? '255,140,120' : kind === 'jar' ? '220,190,120' : '230,230,255';
+  const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, 14);
+  g.addColorStop(0, `rgba(${color},${a})`);
+  g.addColorStop(1, `rgba(${color},0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(t.x, t.y, 14, 0, Math.PI * 2); ctx.fill();
+}
+
+// ---------------- 玩家 ----------------
+export function drawPlayer(ctx, p, invuln) {
+  if (invuln > 0 && Math.floor(invuln * 12) % 2 === 0) return;
+  const bob = p.moving ? Math.sin(p.step) * 1.5 : 0;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.fillStyle = 'rgba(0,0,0,.4)';
+  ctx.beginPath(); ctx.ellipse(0, 12, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#9fb3c8';
+  ctx.beginPath(); ctx.ellipse(0, 3 + bob, 9, 11, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e8d6c0';
+  ctx.beginPath(); ctx.arc(0, -9 + bob, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#2a1f18';
+  ctx.beginPath(); ctx.arc(0, -11 + bob, 7, Math.PI, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.fillRect(p.face * 2 - 1, -9 + bob, 2, 2);
+  ctx.restore();
+}
+
+// ---------------- 道具特效 ----------------
+export function drawFx(ctx, f) {
+  const k = f.t / f.life;
+  ctx.save();
+  if (f.kind === 'harmonica' || f.kind === 'charm') {
+    const color = f.kind === 'charm' ? '255,210,120' : '200,220,255';
+    for (let i = 0; i < 3; i++) {
+      const kk = clamp(k * 1.4 - i * 0.18, 0, 1);
+      if (kk <= 0 || kk >= 1) continue;
+      ctx.strokeStyle = `rgba(${color},${(1 - kk) * 0.7})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 20 + kk * 260, 0, Math.PI * 2); ctx.stroke();
+    }
+  } else if (f.kind === 'matches') {
+    for (let i = 0; i < 14; i++) {
+      const a = i * 2.4 + f.t * 0.6, rr = 20 + (i % 5) * 18 + f.t * 12;
+      ctx.fillStyle = `rgba(150,140,130,${0.18 * (1 - k)})`;
+      ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr - f.t * 8, 26 + (i % 3) * 8, 0, Math.PI * 2); ctx.fill();
+    }
+    if (f.t < 1.2) {
+      ctx.fillStyle = `rgba(255,170,60,${1 - f.t / 1.2})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y - 6, 4, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (f.kind === 'salt') {
+    for (let i = 0; i < 26; i++) {
+      const a = i * 0.9, rr = k * (60 + (i % 7) * 18);
+      ctx.fillStyle = `rgba(240,240,240,${1 - k})`;
+      ctx.fillRect(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr, 2, 2);
+    }
+  } else if (f.kind === 'mirror') {
+    ctx.fillStyle = `rgba(255,255,240,${(1 - k) * 0.5})`;
+    ctx.beginPath(); ctx.arc(f.x, f.y, 40 + k * 200, 0, Math.PI * 2); ctx.fill();
+  } else if (f.kind === 'noise') {
+    ctx.strokeStyle = `rgba(220,220,230,${(1 - k) * 0.35})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.3 + k * 0.7), 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+}
