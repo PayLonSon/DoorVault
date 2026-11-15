@@ -15,8 +15,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const buzz = (ms) => { try { navigator.vibrate?.(ms); } catch (e) { /* 不支援就略過 */ } };
 
-const TARGET_SFX = { window: 'windowClose', cup: 'cup', key: 'key', candle: 'candle', jar: 'seal' };
-const VERB = { window: '關窗', cup: '打翻', key: '撿起', candle: '點燃', jar: '封住' };
+const TARGET_SFX = { window: 'windowClose', cup: 'cup', key: 'key', candle: 'candle', jar: 'seal', lantern: 'lantern', patch: 'nail', clock: 'clockStop', scroll: 'scroll', cover: 'cloth' };
+const VERB = { window: '關窗', cup: '打翻', key: '撿起', candle: '點燃', jar: '封住', lantern: '點亮', patch: '補上', clock: '停下', scroll: '捲起', cover: '蓋上' };
 
 export const dreamScene = {
   enter(game) {
@@ -250,6 +250,17 @@ export const dreamScene = {
     this.behavior.onProgress?.(this, this.monster);
   },
 
+  // 被怪物拆掉的目標（亡羊補牢）：變回未完成
+  reopenTarget(t) {
+    if (!t.done || this.ended) return;
+    t.done = false;
+    t.progress = 0;
+    this.done--;
+    sfx.nail();
+    this.shake = 0.5;
+    this.toast(this.story.messages.undo || '有一個被拆開了！', 2);
+  },
+
   showNote(note) {
     if (!note.read && note.kind === 'memory') {
       // 想起奶奶：這一晚都比較不容易害怕
@@ -422,7 +433,7 @@ export const dreamScene = {
     if (lamp) hole(lamp.x, lamp.y, 170 * flick, 0.9 * flick);
     for (const t of this.targets) {
       if (kind === 'window' && !t.done) hole(t.anchor.x, t.anchor.y, 105, 0.75);
-      if (kind === 'candle' && t.done) hole(t.x, t.y, 150 + Math.sin(this.t * 9 + t.x) * 6, 0.85);
+      if ((kind === 'candle' || kind === 'lantern') && t.done) hole(t.x, t.y, 150 + Math.sin(this.t * 9 + t.x) * 6, 0.85);
     }
     for (const f of this.fx) {
       const k = 1 - f.t / f.life;

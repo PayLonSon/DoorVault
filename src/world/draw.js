@@ -87,6 +87,46 @@ const FLOORS = {
   },
 };
 
+Object.assign(FLOORS, {
+  dirt(g, map, rnd) {
+    for (let i = 0; i < 260; i++) {
+      g.strokeStyle = `rgba(${rnd() < 0.5 ? '90,110,60' : '40,50,28'},${0.25 + rnd() * 0.3})`; g.lineWidth = 1.2;
+      const x = rnd() * map.width, y = rnd() * map.height;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 6, y - 6 - rnd() * 6); g.stroke();
+    }
+    g.fillStyle = 'rgba(120,100,70,.12)'; // 竹林裡踩出來的小路
+    g.beginPath(); g.moveTo(map.width / 2 - 40, map.height); g.bezierCurveTo(map.width * 0.3, map.height * 0.6, map.width * 0.7, map.height * 0.4, map.width / 2 + 30, 0);
+    g.lineTo(map.width / 2 + 90, 0); g.bezierCurveTo(map.width * 0.75, map.height * 0.4, map.width * 0.35, map.height * 0.6, map.width / 2 + 40, map.height); g.fill();
+  },
+  straw(g, map, rnd) {
+    for (let i = 0; i < 500; i++) {
+      g.strokeStyle = `rgba(200,170,90,${0.08 + rnd() * 0.12})`; g.lineWidth = 1;
+      const x = rnd() * map.width, y = rnd() * map.height, a = rnd() * Math.PI;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 12, y + Math.sin(a) * 12); g.stroke();
+    }
+  },
+  paper(g, map, rnd) {
+    g.strokeStyle = 'rgba(230,220,190,.05)'; g.lineWidth = 1;
+    for (let x = 0; x < map.width; x += 60) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, map.height); g.stroke(); }
+    for (let y = 0; y < map.height; y += 60) { g.beginPath(); g.moveTo(0, y); g.lineTo(map.width, y); g.stroke(); }
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = `rgba(10,8,6,${rnd() * 0.35})`;
+      g.beginPath(); g.arc(rnd() * map.width, rnd() * map.height, 1 + rnd() * 4, 0, Math.PI * 2); g.fill();
+    }
+  },
+  water(g, map, rnd) {
+    for (let i = 0; i < 70; i++) {
+      g.strokeStyle = `rgba(150,180,210,${0.03 + rnd() * 0.05})`; g.lineWidth = 1.5;
+      const x = rnd() * map.width, y = rnd() * map.height, w = 30 + rnd() * 80;
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + w / 2, y - 4, x + w, y); g.stroke();
+    }
+    // 中線：一道像水面的反光
+    const grad = g.createLinearGradient(map.width / 2 - 30, 0, map.width / 2 + 30, 0);
+    grad.addColorStop(0, 'rgba(160,200,240,0)'); grad.addColorStop(0.5, 'rgba(160,200,240,.16)'); grad.addColorStop(1, 'rgba(160,200,240,0)');
+    g.fillStyle = grad; g.fillRect(map.width / 2 - 30, 0, 60, map.height);
+  },
+});
+
 const OBSTACLES = {
   crate(g, o) {
     g.fillStyle = '#4a3828'; g.fillRect(o.x, o.y, o.w, o.h);
@@ -129,6 +169,36 @@ const OBSTACLES = {
 };
 
 Object.assign(OBSTACLES, {
+  bamboo(g, o) {
+    let seed = o.x * 7 + o.y;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 6; i++) {
+      const x = o.x + 8 + rnd() * (o.w - 16), y = o.y + 8 + rnd() * (o.h - 16), r = 5 + rnd() * 4;
+      g.fillStyle = '#2e3e22'; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#4a6034'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, r - 2, 0, Math.PI * 2); g.stroke();
+    }
+    g.strokeStyle = 'rgba(80,110,50,.35)'; g.lineWidth = 2;
+    for (let i = 0; i < 8; i++) { // 垂下來的竹葉
+      const a = rnd() * Math.PI * 2, cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+      g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (o.w * 0.8), cy + Math.sin(a) * (o.h * 0.8)); g.stroke();
+    }
+  },
+  hay(g, o) {
+    g.fillStyle = '#8a7440'; g.fillRect(o.x, o.y, o.w, o.h);
+    g.strokeStyle = 'rgba(60,45,20,.6)'; g.lineWidth = 1;
+    for (let y = o.y + 6; y < o.y + o.h; y += 6) { g.beginPath(); g.moveTo(o.x + 2, y); g.lineTo(o.x + o.w - 2, y + 2); g.stroke(); }
+    g.strokeStyle = '#3a2a14'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(o.x + o.w * 0.3, o.y); g.lineTo(o.x + o.w * 0.3, o.y + o.h); g.moveTo(o.x + o.w * 0.7, o.y); g.lineTo(o.x + o.w * 0.7, o.y + o.h); g.stroke();
+  },
+  desk(g, o) {
+    g.fillStyle = '#2a1c12'; g.fillRect(o.x, o.y, o.w, o.h);
+    g.fillStyle = '#d8cfb8'; g.fillRect(o.x + 30, o.y + 18, o.w - 110, o.h - 36);   // 攤開的宣紙
+    g.strokeStyle = '#14110e'; g.lineWidth = 4; g.lineCap = 'round';                   // 紙上那條沒有眼睛的龍
+    g.beginPath(); g.moveTo(o.x + 45, o.y + o.h / 2); g.bezierCurveTo(o.x + 80, o.y + 25, o.x + 110, o.y + o.h - 25, o.x + o.w - 95, o.y + o.h / 2); g.stroke();
+    g.fillStyle = '#111'; g.fillRect(o.x + o.w - 60, o.y + 25, 34, 24);               // 硯台
+    g.fillStyle = '#5a3a20'; g.fillRect(o.x + o.w - 55, o.y + 65, 4, 34);             // 毛筆
+  },
+
   chair(g, o) { // 搖椅
     g.fillStyle = '#5a4230'; g.fillRect(o.x + 6, o.y + 6, o.w - 12, o.h - 12);
     g.strokeStyle = '#2c2017'; g.lineWidth = 3;
@@ -156,6 +226,16 @@ const DECOR_UNDER = {
 };
 
 const DECOR = {
+  ink(g, d) {
+    let seed = d.x + d.y;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    g.fillStyle = 'rgba(8,6,4,.5)';
+    g.beginPath(); g.ellipse(d.x, d.y, 26, 16, rnd() * 3, 0, Math.PI * 2); g.fill();
+    for (let i = 0; i < 10; i++) {
+      const a = rnd() * Math.PI * 2, r = 28 + rnd() * 30;
+      g.beginPath(); g.arc(d.x + Math.cos(a) * r, d.y + Math.sin(a) * r, 1 + rnd() * 4, 0, Math.PI * 2); g.fill();
+    }
+  },
   cane(g, d) { // 奶奶的拐杖：五個夢裡都有
     g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 5; g.lineCap = 'round';
     g.beginPath(); g.moveTo(d.x + 5, d.y - 16); g.lineTo(d.x + 13, d.y + 30); g.stroke();
@@ -284,6 +364,73 @@ export function drawTarget(ctx, t, kind, time) {
         ctx.fillRect(-1, -4, 2, 8);
       }
     }
+  } else if (kind === 'lantern') {
+    ctx.translate(t.x, t.y);
+    ctx.strokeStyle = '#3a4a2a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(0, -20); ctx.stroke();
+    ctx.rotate(Math.sin(time * 1.6 + t.x) * 0.12);
+    ctx.fillStyle = t.done ? '#e0503a' : '#5a1e18';
+    ctx.beginPath(); ctx.ellipse(0, -6, 8, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a1a10'; ctx.fillRect(-4, -17, 8, 3); ctx.fillRect(-4, 3, 8, 3);
+    if (t.done) { ctx.fillStyle = 'rgba(255,215,130,.85)'; ctx.beginPath(); ctx.ellipse(0, -6, 3, 6, 0, 0, Math.PI * 2); ctx.fill(); }
+  } else if (kind === 'patch') {
+    const horiz = t.side === 'top' || t.side === 'bottom';
+    ctx.translate(t.x, t.y);
+    if (!horiz) ctx.rotate(Math.PI / 2);
+    if (!t.done) {
+      ctx.fillStyle = '#050403';
+      ctx.beginPath(); ctx.ellipse(0, 0, 30, 12, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(150,130,110,.85)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      for (let i = -2; i <= 2; i++) { // 洞裡伸出來扭動的手指
+        const w = Math.sin(time * 5 + i * 1.3) * 3;
+        ctx.beginPath(); ctx.moveTo(i * 8, 4); ctx.lineTo(i * 8 + w, -6); ctx.stroke();
+      }
+    } else {
+      ctx.translate((t.tear || 0) * 3 * (Math.random() - 0.5), 0);
+      ctx.fillStyle = '#6a4e30'; ctx.fillRect(-32, -9, 64, 8); ctx.fillRect(-32, 1, 64, 8);
+      ctx.fillStyle = '#c8c8c8';
+      for (const x of [-26, 24]) { ctx.fillRect(x, -6, 2, 2); ctx.fillRect(x, 4, 2, 2); }
+      if (t.tear > 0) {
+        ctx.strokeStyle = `rgba(210,50,30,${t.tear})`; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(-10, -9); ctx.lineTo(-4, 0); ctx.lineTo(-12, 9); ctx.moveTo(12, -9); ctx.lineTo(6, 2); ctx.stroke();
+      }
+    }
+  } else if (kind === 'clock') {
+    ctx.translate(t.x, t.y);
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.beginPath(); ctx.ellipse(3, 17, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4a3420'; ctx.fillRect(-11, -18, 22, 34);
+    ctx.fillStyle = '#d8ccb0'; ctx.beginPath(); ctx.arc(0, -8, 8, 0, Math.PI * 2); ctx.fill();
+    const a1 = t.done ? 2.2 : time * 3 + t.x, a2 = t.done ? -1 : time * 0.25 + t.y;
+    ctx.strokeStyle = '#1a120c'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(Math.cos(a1) * 6, -8 + Math.sin(a1) * 6);
+    ctx.moveTo(0, -8); ctx.lineTo(Math.cos(a2) * 4, -8 + Math.sin(a2) * 4); ctx.stroke();
+    const pend = t.done ? 0 : Math.sin(time * 3 + t.x) * 0.5;
+    ctx.strokeStyle = '#b89a50';
+    ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(Math.sin(pend) * 8, 2 + Math.cos(pend) * 11); ctx.stroke();
+  } else if (kind === 'scroll') {
+    ctx.translate(t.x, t.y);
+    if (!t.done) {
+      ctx.fillStyle = '#d8cfb8'; ctx.fillRect(-11, -20, 22, 40);
+      ctx.fillStyle = '#3a2a1a'; ctx.fillRect(-13, -22, 26, 3); ctx.fillRect(-13, 19, 26, 3);
+      ctx.strokeStyle = 'rgba(20,16,12,.85)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-6, -14); ctx.bezierCurveTo(8, -8, -8, 2, 6, 12); ctx.stroke();
+    } else {
+      ctx.fillStyle = '#c8bea6'; ctx.fillRect(-13, -3, 26, 7);
+      ctx.fillStyle = '#3a2a1a'; ctx.fillRect(-15, -3, 3, 7); ctx.fillRect(12, -3, 3, 7);
+      ctx.fillStyle = '#a01818'; ctx.fillRect(-1, -3, 2, 7);
+    }
+  } else if (kind === 'cover') {
+    ctx.translate(t.x, t.y);
+    ctx.fillStyle = '#3a2c20'; ctx.beginPath(); ctx.ellipse(0, 0, 14, 19, 0, 0, Math.PI * 2); ctx.fill();
+    if (!t.done) {
+      const g = ctx.createLinearGradient(-10, -16, 10, 16);
+      g.addColorStop(0, '#8a96a2'); g.addColorStop(0.5, '#d0d8e2'); g.addColorStop(1, '#5a6470');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, 11, 16, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(20,20,30,.6)'; ctx.beginPath(); ctx.ellipse(0, 3, 4, 7, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = '#e8e2d4';
+      ctx.beginPath(); ctx.moveTo(-16, -21); ctx.lineTo(16, -21); ctx.lineTo(18, 23); ctx.quadraticCurveTo(0, 17, -18, 23); ctx.closePath(); ctx.fill();
+    }
   }
   ctx.restore();
 }
@@ -292,7 +439,7 @@ export function drawTarget(ctx, t, kind, time) {
 export function drawTargetGlint(ctx, t, kind, time) {
   if (t.done || t.broken || kind === 'window') return;
   const a = 0.25 + Math.sin(time * 2.5 + t.x * 0.01) * 0.15;
-  const color = kind === 'key' ? '255,220,120' : kind === 'cup' ? '255,140,120' : kind === 'jar' ? '220,190,120' : '230,230,255';
+  const color = { key: '255,220,120', cup: '255,140,120', jar: '220,190,120', lantern: '255,120,90', patch: '200,160,110', clock: '240,220,170', scroll: '235,225,200', cover: '190,215,240' }[kind] || '230,230,255';
   const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, 14);
   g.addColorStop(0, `rgba(${color},${a})`);
   g.addColorStop(1, `rgba(${color},0)`);
