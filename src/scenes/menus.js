@@ -4,6 +4,7 @@ import { STORIES, SECRET_ENDING } from '../content/stories/index.js';
 import { initAudio, sfx } from '../core/audio.js';
 import { resolveEffect, EFFECT_LABEL } from '../core/effects.js';
 import { isTouchDevice } from '../core/input.js';
+import { openHowto } from '../ui/howto.js';
 
 // 流程：標題 → 選道具 → [選門 → 開場 → 夢境 → 選成長] ×3 → 結算
 // 一晚要連過三扇門才算真正醒來，三扇門共用五分鐘。
@@ -65,7 +66,7 @@ export const titleScene = backdropScene((game) => {
       <h1>三扇門</h1>
       <p class="sub">閉上眼睛。<br>天亮之前，走過三扇門，才能真正醒來。</p>
       <button class="btn" id="start">入睡</button>
-      ${canFullscreen() ? '<br><button class="btn ghost" id="fs">全螢幕</button>' : ''}
+      <br><button class="btn ghost" id="howto-open">怎麼玩</button>${canFullscreen() ? ' <button class="btn ghost" id="fs">全螢幕</button>' : ''}
       <p class="hint">${controls}<br>一晚只有五分鐘・建議戴耳機${isTouchDevice() ? '・iPhone 請關掉靜音開關才聽得到聲音' : ''}</p>
     </div>`;
   const fs = game.ui.querySelector('#fs');
@@ -73,6 +74,7 @@ export const titleScene = backdropScene((game) => {
     try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch (e) { /* 略過 */ }
   };
   game.ui.querySelector('#start').onclick = () => newNight(game);
+  game.ui.querySelector('#howto-open').onclick = () => { initAudio(); sfx.click(); openHowto(); };
 });
 
 // ---------- 選道具（3 選 1） ----------
@@ -91,6 +93,7 @@ export const itemsScene = backdropScene((game) => {
           </div>`).join('')}
       </div>
       <button class="btn" id="go" disabled>帶著它入睡</button>
+      <p class="hint"><a href="#" id="howto-items" class="howto-link">不知道怎麼選？看玩法</a></p>
     </div>`;
   const cards = [...game.ui.querySelectorAll('.card')];
   const go = game.ui.querySelector('#go');
@@ -102,6 +105,7 @@ export const itemsScene = backdropScene((game) => {
     sfx.click();
   });
   go.onclick = () => { sfx.select(); game.go('doors'); };
+  game.ui.querySelector('#howto-items').onclick = (e) => { e.preventDefault(); openHowto(); };
 });
 
 // ---------- 選門 ----------

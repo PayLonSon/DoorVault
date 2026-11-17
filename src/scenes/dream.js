@@ -2,6 +2,7 @@ import { resolveEffect } from '../core/effects.js';
 import { sfx, startAmbience, stopAmbience, updateAmbience, suspendAudio, resumeAudio } from '../core/audio.js';
 import { isTouchDevice, setLefty, isLefty } from '../core/input.js';
 import { session, NIGHT_SECONDS, DOORS_PER_NIGHT } from '../core/run.js';
+import { openHowto, closeHowto, isHowtoOpen } from '../ui/howto.js';
 import { BEHAVIORS } from '../world/monsters.js';
 import { buildStaticLayer, targetAnchor, drawTarget, drawTargetGlint, drawPlayer, drawNote, drawFx } from '../world/draw.js';
 
@@ -66,6 +67,11 @@ export const dreamScene = {
     this.hint.classList.remove('fade');
     document.getElementById('btn-pause').onclick = () => this.pause(game);
     document.getElementById('btn-resume').onclick = () => this.resume(game);
+    // 暫停中看玩法：關掉後回到暫停畫面
+    document.getElementById('btn-howto-pause').onclick = () => {
+      document.getElementById('pause').classList.add('hidden');
+      openHowto(() => { if (this.paused) document.getElementById('pause').classList.remove('hidden'); });
+    };
     const lefty = document.getElementById('btn-lefty');
     lefty.classList.toggle('hidden', !isTouchDevice());
     lefty.onclick = () => { setLefty(!isLefty()); lefty.textContent = `左手模式：${isLefty() ? '開' : '關'}`; };
@@ -81,6 +87,7 @@ export const dreamScene = {
   },
 
   exit() {
+    if (isHowtoOpen()) closeHowto();
     document.getElementById('pause').classList.add('hidden');
     this.hud.root.classList.add('hidden');
     this.hud.toast.classList.remove('show');

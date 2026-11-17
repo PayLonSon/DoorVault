@@ -188,3 +188,32 @@ button { touch-action: manipulation; }
   .hud-note { bottom: auto; top: calc(max(12px, env(safe-area-inset-top)) + 96px); font-size: 15px; padding: 12px 14px; }
   .hud-toast { top: 40%; }
 }
+
+/* ---------- 玩法介紹 ---------- */
+#howto { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+  background: rgba(3, 2, 4, .88); padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+.howto-card { position: relative; width: min(94vw, 520px); max-height: 100%; overflow-y: auto; text-align: center;
+  padding: 26px 20px 18px; background: rgba(18, 13, 13, .96); border: 1px solid rgba(232, 223, 207, .18);
+  box-shadow: 0 0 60px rgba(120, 20, 20, .25); animation: fadeIn .4s ease both; }
+.howto-close { position: absolute; right: 8px; top: 8px; width: 40px; height: 40px; font-size: 18px; color: #e8dfcf;
+  background: none; border: none; cursor: pointer; opacity: .7; z-index: 2; }
+.howto-step { font-size: 12px; letter-spacing: .25em; opacity: .45; margin-bottom: 6px; }
+.howto-page h2 { margin-bottom: 14px; }
+.howto-art { width: 100%; max-width: 340px; height: auto; max-height: 34vh; color: #d9d2c5; margin: 0 auto 12px; display: block; }
+.howto-body { font-size: 15px; line-height: 1.95; text-align: left; opacity: .9; min-height: 7.8em; }
+.howto-body b { color: #f0c8b0; font-weight: 600; }
+.howto-dots { display: flex; justify-content: center; gap: 8px; margin: 14px 0 12px; }
+.howto-dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(232, 223, 207, .22); cursor: pointer; }
+.howto-dots i.on { background: #c44; }
+.howto-nav { display: flex; justify-content: space-between; gap: 10px; }
+.howto-nav .btn { flex: 1; font-size: 15px; padding: 10px 8px; letter-spacing: .2em; }
+.howto-link { color: inherit; text-decoration: underline; text-underline-offset: 4px; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .howto-card { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; align-items: center; width: min(96vw, 760px); padding: 16px; }
+  .howto-page { display: contents; }
+  .howto-step, .howto-page h2 { grid-column: 1 / -1; margin-bottom: 4px; }
+  .howto-art { max-height: 46vh; margin: 0; }
+  .howto-body { min-height: 0; font-size: 14px; }
+  .howto-dots, .howto-nav { grid-column: 1 / -1; margin: 8px 0 4px; }
+}
+.howto-nav .btn { margin-top: 0; }
